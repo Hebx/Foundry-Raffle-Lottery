@@ -25,9 +25,12 @@
 pragma solidity ^0.8.18;
 
 import {VRFCoordinatorV2Interface} from "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
+import {VRFConsumerBaseV2} from "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 
-error NotEnoughEth();
-error NotEnoughTime();
+error Raffle__NotEnoughEth();
+error Raffle__NotEnoughTime();
+error Raffle__TransferFailed();
+error Raffle__NotOpen();
 
 /**
  * @title Raffle Lottery contract
@@ -36,7 +39,13 @@ error NotEnoughTime();
  * @dev using Chainlink VRFv2
  */
 
-contract Raffle {
+contract Raffle is VRFConsumerBaseV2 {
+    /** Types Declarations */
+    enum RaffleState {
+        OPEN,
+        CALCULATING_WINNER
+    }
+
     /** State Variables */
     uint16 private constant REQUEST_CONFIRMATIONS = 3;
     uint32 private constant NUM_WORDS = 1;
@@ -49,6 +58,8 @@ contract Raffle {
     bytes32 private immutable i_gasLane;
     uint64 private immutable i_subscriptionId;
     uint32 private immutable i_callbackGasLimit;
+    address private s_recentWinner;
+    RaffleState private s_raffleState;
 
     /** Events */
     event EnteredRaffle(address indexed player);
@@ -56,25 +67,29 @@ contract Raffle {
     constructor(
         uint256 entranceFee,
         uint256 interval,
-        VRFCoordinatorV2Interface vrfCoordinator,
+        address vrfCoordinator,
         bytes32 gasLane,
         uint64 subscriptionId,
         uint32 callbackGasLimit
-    ) {
+    ) VRFConsumerBaseV2(vrfCoordinator) {
         i_entranceFee = entranceFee;
         i_interval = interval;
         s_lastTimeStamp = block.timestamp;
-        i_vrfCoordinator = vrfCoordinator;
+        i_vrfCoordinator = VRFCoordinatorV2Interface(vrfCoordinator);
         i_gasLane = gasLane;
         i_subscriptionId = subscriptionId;
         i_callbackGasLimit = callbackGasLimit;
+        s_raffleState = RaffleState.OPEN;
     }
 
     // External because we assume no one will call this function from within the contract
     function enterRaffle() external payable {
+        if (s_raffleState != RaffleState.OPEN) {
+            revert Raffle__NotOpen();
+        }
         // require(msg.value >= i_entranceFee, "Not enough ether");
         if (msg.value < i_entranceFee) {
-            revert NotEnoughEth();
+            revert Raffle__NotEnoughEth();
         }
         s_players.push(payable(msg.sender));
         emit EnteredRaffle(msg.sender);
@@ -87,8 +102,9 @@ contract Raffle {
     function pickWinner() external {
         // Check to see if enough time has passed
         if ((block.timestamp - s_lastTimeStamp) < i_interval) {
-            revert NotEnoughTime();
+            revert Raffle__NotEnoughTime();
         }
+        s_raffleState = RaffleState.CALCULATING_WINNER;
         // Request RNG
         // Callback a Random Number
         uint256 requestId = i_vrfCoordinator.requestRandomWords( // vrf coordinator different from chains
@@ -98,6 +114,20 @@ contract Raffle {
             i_callbackGasLimit, // max callback gas limit
             NUM_WORDS // number of random numbers
         );
+    }
+
+    function fulfillRandomWords(
+        uint256 requestId,
+        uint256[] memory randomWords
+    ) internal override {
+        // We are overriding a function that exists in our inheritance
+        uint256 indexOfWinner = randomWords[0] % s_players.length;
+        address payable winner = s_players[indexOfWinner];
+        s_recentWinner = winner;
+        (bool success, ) = winner.call{value: address(this).balance}("");
+        if (!success) {
+            revert Raffle__TransferFailed();
+        }
     }
 
     /** Getter Functions */
