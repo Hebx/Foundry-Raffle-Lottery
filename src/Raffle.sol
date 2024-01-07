@@ -27,16 +27,6 @@ pragma solidity ^0.8.18;
 import {VRFCoordinatorV2Interface} from "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import {VRFConsumerBaseV2} from "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 
-error Raffle__NotEnoughEth();
-error Raffle__NotEnoughTime();
-error Raffle__TransferFailed();
-error Raffle__NotOpen();
-error Raffle__UpkeepNotNeeded(
-    uint256 currentBalance,
-    uint256 numPlayers,
-    uint256 raffleState
-);
-
 /**
  * @title Raffle Lottery contract
  * @author Ihab Heb
@@ -45,6 +35,16 @@ error Raffle__UpkeepNotNeeded(
  */
 
 contract Raffle is VRFConsumerBaseV2 {
+    /** Errors */
+    error Raffle__NotEnoughEth();
+    error Raffle__NotEnoughTime();
+    error Raffle__TransferFailed();
+    error Raffle__NotOpen();
+    error Raffle__UpkeepNotNeeded(
+        uint256 currentBalance,
+        uint256 numPlayers,
+        uint256 raffleState
+    );
     /** Types Declarations */
     enum RaffleState {
         OPEN,
@@ -90,12 +90,12 @@ contract Raffle is VRFConsumerBaseV2 {
 
     // External because we assume no one will call this function from within the contract
     function enterRaffle() external payable {
-        if (s_raffleState != RaffleState.OPEN) {
-            revert Raffle__NotOpen();
-        }
         // require(msg.value >= i_entranceFee, "Not enough ether");
         if (msg.value < i_entranceFee) {
             revert Raffle__NotEnoughEth();
+        }
+        if (s_raffleState != RaffleState.OPEN) {
+            revert Raffle__NotOpen();
         }
         s_players.push(payable(msg.sender));
         emit EnteredRaffle(msg.sender);
@@ -183,5 +183,9 @@ contract Raffle is VRFConsumerBaseV2 {
 
     function getRaffleState() external view returns (RaffleState) {
         return s_raffleState;
+    }
+
+    function getPlayers(uint256 indexOfPlayer) external view returns (address) {
+        return s_players[indexOfPlayer];
     }
 }
