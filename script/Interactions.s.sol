@@ -82,7 +82,7 @@ contract FundSubscription is Script {
     }
 }
 
-contract AddComsumer is Script {
+contract AddConsumer is Script {
     function addConsumer(
         address raffle,
         address vrfCoordinator,
