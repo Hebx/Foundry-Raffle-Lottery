@@ -69,6 +69,7 @@ contract Raffle is VRFConsumerBaseV2 {
     /** Events */
     event EnteredRaffle(address indexed player);
     event PickedWinner(address indexed winner);
+    event RequestedRaffleWinner(uint256 indexed requestId);
 
     constructor(
         uint256 entranceFee,
@@ -151,6 +152,7 @@ contract Raffle is VRFConsumerBaseV2 {
             i_callbackGasLimit, // max callback gas limit
             NUM_WORDS // number of random numbers
         );
+        emit RequestedRaffleWinner(requestId);
     }
 
     // CEI --> Checks, Effects, Interactions
