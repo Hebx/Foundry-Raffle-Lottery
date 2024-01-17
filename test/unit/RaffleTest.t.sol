@@ -23,6 +23,7 @@ contract RaffleTest is Test {
     uint64 subscriptionId;
     uint32 callbackGasLimit;
     address link;
+    uint256 deployerKey;
 
     address public PLAYER = makeAddr("player");
     uint256 public constant STARTING_USER_BALANCE = 10 ether;
@@ -37,7 +38,8 @@ contract RaffleTest is Test {
             gasLane,
             subscriptionId,
             callbackGasLimit,
-            link
+            link,
+            deployerKey
         ) = helperConfig.activeNetworkConfig();
         vm.deal(PLAYER, STARTING_USER_BALANCE);
     }
@@ -164,6 +166,8 @@ contract RaffleTest is Test {
         public
         raffleEnteredAndTimePassed
     {
+        address expectedWinner = address(1);
+
         // arrange
         uint256 addiotionalPlayers = 3;
         uint256 startingIndex = 1;
@@ -177,6 +181,11 @@ contract RaffleTest is Test {
             raffle.enterRaffle{value: entranceFee}();
         }
 
+        uint256 startingTimeStamp = raffle.getLastTimeStamp();
+        uint256 startingBalance = expectedWinner.balance;
+        address recentWinner = raffle.getRecentWinner();
+        Raffle.RaffleState raffleState = raffle.getRaffleState();
+
         // prize
         uint256 prize = entranceFee * (addiotionalPlayers + 1);
 
@@ -184,70 +193,21 @@ contract RaffleTest is Test {
         raffle.performUpkeep(""); // emit requestId
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bytes32 requestId = entries[1].topics[1];
-        uint256 previousTimeStamp = raffle.getLastTimeStamp();
 
         // We mock the test pretending to be the chainlink node vrf on anvil to call the vrf and get a rn
         VRFCoordinatorV2Mock(vrfCoordinator).fulfillRandomWords(
             uint256(requestId),
             address(raffle)
         );
+        uint256 endingTimeStamp = raffle.getLastTimeStamp();
+        uint256 winnerBalance = recentWinner.balance;
 
-        assert(raffle.getRaffleState() == Raffle.RaffleState.OPEN);
-        assert(raffle.getRecentWinner() != address(0));
+        assert(uint256(raffleState) == 0);
+        assert(recentWinner == expectedWinner);
         assert(raffle.getLengthOfPlayers() == 0);
-        assert(previousTimeStamp < raffle.getLastTimeStamp());
+        assert(startingTimeStamp < endingTimeStamp);
         console.log("prize", prize);
         console.log("balance", raffle.getRecentWinner().balance);
-        assert(
-            raffle.getRecentWinner().balance ==
-                STARTING_USER_BALANCE + prize - entranceFee
-        );
+        assert(winnerBalance == STARTING_USER_BALANCE + prize - entranceFee);
     }
 }
-
-// function testFulfillRandomWordsPicksAWinnerResetsAndSendsMoney()
-//     public
-//     raffleEnteredAndTimePassed
-// {
-//     address expectedWinner = address(1);
-
-//     // Arrange
-//     uint256 additionalEntrances = 3;
-//     uint256 startingIndex = 1; // We have starting index be 1 so we can start with address(1) and not address(0)
-
-//     for (
-//         uint256 i = startingIndex;
-//         i < startingIndex + additionalEntrances;
-//         i++
-//     ) {
-//         address player = address(uint160(i));
-//         hoax(player, 1 ether); // deal 1 eth to the player
-//         raffle.enterRaffle{value: entranceFee}();
-//     }
-
-//     uint256 startingTimeStamp = raffle.getLastTimeStamp();
-//     uint256 startingBalance = expectedWinner.balance;
-
-//     // Act
-//     vm.recordLogs();
-//     raffle.performUpkeep(""); // emits requestId
-//     Vm.Log[] memory entries = vm.getRecordedLogs();
-//     bytes32 requestId = entries[1].topics[1]; // get the requestId from the logs
-
-//     VRFCoordinatorV2Mock(vrfCoordinator).fulfillRandomWords(
-//         uint256(requestId),
-//         address(raffle)
-//     );
-
-//     // Assert
-//     address recentWinner = raffle.getRecentWinner();
-//     Raffle.RaffleState raffleState = raffle.getRaffleState();
-//     uint256 winnerBalance = recentWinner.balance;
-//     uint256 endingTimeStamp = raffle.getLastTimeStamp();
-//     uint256 prize = entranceFee * (additionalEntrances + 1);
-
-//     assert(recentWinner == expectedWinner);
-//     assert(uint256(raffleState) == 0);
-//     assert(winnerBalance == startingBalance + prize);
-//     assert(endingTimeStamp > startingTimeStamp);
-// }
