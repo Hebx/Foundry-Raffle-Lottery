@@ -115,13 +115,13 @@ contract RaffleTest is Test {
     function testPerformUpkeepRevertIfUpkeepIsFalse() public {
         uint256 currentBalance = 0;
         uint256 numPlayers = 0;
-        uint256 raffleState = 0;
+        Raffle.RaffleState rState = raffle.getRaffleState();
         vm.expectRevert(
             abi.encodeWithSelector(
                 Raffle.Raffle__UpkeepNotNeeded.selector,
                 currentBalance,
                 numPlayers,
-                raffleState
+                rState
             )
         );
         raffle.performUpkeep("");
@@ -151,10 +151,16 @@ contract RaffleTest is Test {
         vm.roll(block.number + 1);
         _;
     }
+    modifier skipFork() {
+        if (block.chainid != 31337) {
+            return;
+        }
+        _;
+    }
 
     function testGenerateRnCanOnlyBeCalledAfterPerformUpkeep(
         uint256 randomRequestId
-    ) public raffleEnteredAndTimePassed {
+    ) public raffleEnteredAndTimePassed skipFork {
         vm.expectRevert("nonexistent request");
         VRFCoordinatorV2Mock(vrfCoordinator).fulfillRandomWords(
             randomRequestId,
@@ -165,6 +171,7 @@ contract RaffleTest is Test {
     function testFulfillRnPicksAWinnerResetsAndSendsMoney()
         public
         raffleEnteredAndTimePassed
+        skipFork
     {
         address expectedWinner = address(1);
 
