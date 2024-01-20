@@ -35,7 +35,7 @@ contract RaffleTest is Test {
             entranceFee,
             interval,
             vrfCoordinator,
-            gasLane,
+            ,
             subscriptionId,
             callbackGasLimit,
             link,
